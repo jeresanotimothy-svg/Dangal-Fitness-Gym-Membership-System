@@ -8,8 +8,9 @@ Stack: HTML + Bootstrap 5 (frontend) - Node.js + Express (backend) - MySQL (data
 2. Open the XAMPP Control Panel and start MySQL (and Apache for phpMyAdmin).
 3. Open http://localhost/phpmyadmin, go to the Import tab, and import `database/gym_db.sql`
    (this recreates the database, so import it again after every update of this file).
-4. Copy `.env.example` to `.env`. Set `DB_PASSWORD` if your MySQL password is not blank, and replace `SESSION_SECRET`
-   with your own long random text (the file shows a command that makes one).
+4. Copy `.env.example` to `.env`. Set `DB_PASSWORD` to your MySQL password (the server will not start without it) and
+   replace `SESSION_SECRET` with your own long random text (the file shows a command that makes one).
+   See **Set a MySQL password** below if MySQL still has no password.
 5. In this folder run:  `npm install`  then  `npm start`
 6. Open http://localhost:3000
 
@@ -30,10 +31,50 @@ Sample logins (change them before going online): admin/admin123 (Admin) - manage
 | Cross-site requests | Requests that change data must come from this same site and must be JSON (`middleware/sameOrigin.js`). |
 | Browser protection headers | `X-Frame-Options`, `X-Content-Type-Options`, `Content-Security-Policy` and others (`middleware/securityHeaders.js`); data responses are never cached. |
 | No data loss | Nothing is deleted: records are hidden, accounts are disabled. |
+| Database login | MySQL needs a password. The server reads it from `.env` (`config/db.js`) and refuses to start without it. |
 | Secrets stay secret | Database password and session secret live in `.env`, which is listed in `.gitignore`. |
 
 Still to do before going online with real data: use HTTPS (the host provides it), set `NODE_ENV=production`,
 change every sample password, and keep regular database backups.
+
+## Deploy online (Render + TiDB Cloud, both free)
+Render runs the Node app. It has no MySQL, so the database goes on **TiDB Cloud** (free, MySQL compatible, works from other servers).
+InfinityFree cannot be used for the database: its free MySQL only accepts connections from its own PHP hosting.
+
+1. **Database.** Create a free TiDB Cloud account and cluster. Open **SQL Editor**, paste all of `database/gym_db_cloud.sql` and run it
+   (it creates `gym_db` with all tables and sample data). Click **Connect** and note the host, port (4000), user and password.
+2. **GitHub.** Push this project (the `.env` file stays private because of `.gitignore`).
+3. **Render.** New > Web Service > pick the repository. Build command `npm install`, start command `npm start`, instance type Free,
+   health check path `/healthz`. (Or use New > Blueprint, which reads `render.yaml`.)
+4. **Environment tab** (these replace `.env` online):
+
+| Name | Value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `SESSION_SECRET` | long random text (16+ characters); the Blueprint makes one for you |
+| `DB_HOST` | TiDB host, for example `gateway01.xxxx.prod.aws.tidbcloud.com` |
+| `DB_PORT` | `4000` |
+| `DB_USER` | the TiDB user, for example `xxxxxxxx.root` |
+| `DB_PASSWORD` | the TiDB password |
+| `DB_NAME` | `gym_db` |
+| `DB_SSL` | `true` |
+| `DB_TIMEZONE` | `+08:00` |
+
+5. Deploy, open the Render address, log in as `admin` and **reset the sample passwords** (User Accounts > Password).
+
+Free Render services go to sleep when nobody visits, so the first page after a pause can take about a minute to load.
+
+## Set a MySQL password
+XAMPP's MySQL starts with a blank `root` password. Give it one, then write the same password in `.env` (`DB_PASSWORD`).
+1. XAMPP Control Panel > MySQL **Shell** (or phpMyAdmin > SQL tab) and run, with your own password:
+   ```sql
+   ALTER USER IF EXISTS 'root'@'localhost' IDENTIFIED BY 'your-password';
+   ALTER USER IF EXISTS 'root'@'127.0.0.1' IDENTIFIED BY 'your-password';
+   ALTER USER IF EXISTS 'root'@'::1' IDENTIFIED BY 'your-password';
+   FLUSH PRIVILEGES;
+   ```
+2. phpMyAdmin: open `C:\xampp\phpMyAdmin\config.inc.php` and set `$cfg['Servers'][$i]['password'] = 'your-password';`
+3. Put the same password in `.env`. The password is never written in the code or on GitHub.
 
 ## Look and feel
 Calm forest-green theme with **Light mode** and **Dark mode**. Use the mode button in the top bar (on the login page, the button in the top-right corner). The choice is remembered in the browser; the first visit follows the computer's own light/dark setting. Colors are checked for readable contrast in both modes, and icons come from Bootstrap Icons.
@@ -76,6 +117,7 @@ and user accounts are disabled (`is_active = 0`) instead of deleted.
 dangal-fitness-system/
 ├── server.js                  Express app entry point
 ├── package.json
+├── render.yaml               Render blueprint (optional)
 ├── .env / .env.example        DB settings, port, session secret
 ├── .gitignore
 ├── config/
@@ -102,7 +144,8 @@ dangal-fitness-system/
 │   └── js/theme.js  validators.js  common.js  config.js  manage.js
 │       manage/ (state.js  table.js  sort.js  board.js  form.js)
 └── database/
-    ├── gym_db.sql
+    ├── gym_db.sql             local XAMPP (recreates the database)
+    ├── gym_db_cloud.sql       online database (TiDB Cloud)
     └── queries.sql
 ```
 
